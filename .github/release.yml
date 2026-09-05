@@ -1,0 +1,8 @@
+# GitHub release-note configuration for OMEN.
+# This keeps generated release notes focused on meaningful project changes.
+exclude:
+  labels:
+    - chore
+    - dependencies
+  authors:
+    - dependabot
