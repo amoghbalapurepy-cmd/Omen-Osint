@@ -46,7 +46,7 @@ Example inputs:
 
 ```text
 plague.programmer
-Amogh Balapure
+Example name
 "example phrase"
 example_username
 ```
