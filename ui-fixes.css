@@ -1,0 +1,3 @@
+/* Small compatibility overrides for the redesigned dashboard. */
+body.omen-redesign .app > .topbar{display:none!important;}
+body.omen-redesign .omen-ui{margin:0;}
