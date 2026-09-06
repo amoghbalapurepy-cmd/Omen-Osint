@@ -99,4 +99,16 @@ const server=http.createServer(async(req,res)=>{
   }
   send(res,404,'Not found','text/plain; charset=utf-8');
 });
-server.listen(PORT,()=>console.log(`OMEN OSINT running at http://localhost:${PORT}`));
+
+if (require.main === module) {
+  server.listen(PORT,()=>console.log(`OMEN OSINT running at http://localhost:${PORT}`));
+}
+
+module.exports = {
+  server,
+  validUsername,
+  makeSearchQueries,
+  makeWebSearchQueries,
+  runWebSearch,
+  runRecon,
+};
