@@ -6,6 +6,12 @@
 # Dependencies
 node_modules/
 
+# Next.js
+.next/
+next-env.d.ts
+out/
+.vercel
+
 # Logs
 *.log
 logs/

@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+/* ============================================================
+   OMEN DESIGN TOKENS
+   Local-first OSINT & Security Console
+   ============================================================ */
+:root {
+  --background: #02070d;
+  --surface: #06111c;
+  --panel: #071725;
+  --deep: #030c15;
+
+  --foreground: #eaf8fc;
+  --secondary: #9bbbc8;
+  --muted: #557786;
+
+  --cyan: #18e4f5;
+  --cyan-glow: rgba(24, 228, 245, 0.15);
+  --cyan-border: rgba(24, 228, 245, 0.25);
+
+  --green: #38e58c;
+  --warning: #f4c95d;
+  --error: #ff6472;
+
+  /* structural hairlines */
+  --line: rgba(120, 170, 190, 0.1);
+  --line-strong: rgba(120, 170, 190, 0.18);
+
+  --radius: 6px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-deep: var(--deep);
+
+  --color-foreground: var(--foreground);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+
+  --color-cyan: var(--cyan);
+  --color-cyan-border: var(--cyan-border);
+  --color-green: var(--green);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  background-color: var(--background);
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(24, 228, 245, 0.25);
+  color: var(--foreground);
+}
+
+/* Thin technical scrollbar */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: var(--deep);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 170, 190, 0.18);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(24, 228, 245, 0.35);
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+
+/* Wide-tracked technical label */
+.label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Angular / clipped corners for engineered panels */
+.clip-notch {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+}
+.clip-notch-sm {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+}
+.clip-notch-tr {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+
+/* Faint technical grid used on the hero canvas */
+.omen-grid {
+  background-image:
+    linear-gradient(to right, rgba(120, 170, 190, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 170, 190, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.omen-radial {
+  background:
+    radial-gradient(
+      circle at 50% 46%,
+      rgba(24, 228, 245, 0.08) 0%,
+      rgba(24, 228, 245, 0.02) 30%,
+      transparent 62%
+    );
+}
+
+/* ============================================================
+   ANIMATIONS (kept subtle)
+   ============================================================ */
+@keyframes omen-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes omen-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+@keyframes omen-ring-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+@keyframes omen-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes omen-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.animate-sweep {
+  animation: omen-sweep 14s linear infinite;
+  transform-origin: center;
+}
+.animate-status {
+  animation: omen-pulse 2.6s ease-in-out infinite;
+}
+.animate-blink {
+  animation: omen-blink 1.8s steps(2, start) infinite;
+}
+.fade-up {
+  animation: omen-fade-up 0.4s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sweep,
+  .animate-status,
+  .animate-blink,
+  .fade-up {
+    animation: none !important;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
