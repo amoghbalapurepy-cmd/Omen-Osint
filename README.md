@@ -2,6 +2,10 @@
 
 ### Personal Exposure & Network Security Console
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js CI](https://github.com/amoghbalapurepy-cmd/Omen-Osint/actions/workflows/node-ci.yml/badge.svg)](https://github.com/amoghbalapurepy-cmd/Omen-Osint/actions/workflows/node-ci.yml)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://omen-osint.vercel.app)
+
 **OMEN** is a local-first, browser-based security and OSINT console designed to help users investigate **publicly available information** and perform defensive security checks from a single interface.
 
 It combines live public-web search, public username verification, network diagnostics, and several defensive security utilities in one lightweight Node.js application.
@@ -250,7 +254,7 @@ git clone https://github.com/amoghbalapurepy-cmd/Omen-Osint.git
 cd Omen-Osint
 ```
 
-Install dependencies if the project contains any:
+Install dependencies:
 
 ```bash
 npm install
@@ -260,40 +264,53 @@ npm install
 
 ## Configuration
 
-OMEN expects the Tavily API key to be available as an environment variable.
-
-### Windows PowerShell
-
-```powershell
-$env:TAVILY_API_KEY="YOUR_TAVILY_API_KEY"
-node server.js
-```
-
-### Windows CMD
-
-```cmd
-set TAVILY_API_KEY=YOUR_TAVILY_API_KEY
-node server.js
-```
-
-### Linux / macOS
+OMEN expects the Tavily API key to be available as an environment variable. Copy `.env.example` to `.env` and fill in your key:
 
 ```bash
-export TAVILY_API_KEY="YOUR_TAVILY_API_KEY"
-node server.js
+cp .env.example .env
+```
+
+```text
+TAVILY_API_KEY=your_tavily_api_key_here
+PORT=8787
+```
+
+### Running the app (Next.js — recommended)
+
+```bash
+npm run dev
 ```
 
 Then open:
 
 ```text
-http://localhost:8787
+http://localhost:3000
 ```
+
+For a production build:
+
+```bash
+npm run build
+npm run start
+```
+
+### Running the legacy standalone server
+
+An earlier, non-Next.js version of the console is still available via `server.js`:
+
+```bash
+export TAVILY_API_KEY="YOUR_TAVILY_API_KEY"   # Linux/macOS
+# $env:TAVILY_API_KEY="YOUR_TAVILY_API_KEY"   # Windows PowerShell
+# set TAVILY_API_KEY=YOUR_TAVILY_API_KEY      # Windows CMD
+
+node server.js
+```
+
+Then open `http://localhost:8787`.
 
 ### Never commit your real API key
 
-Your real Tavily key should remain local.
-
-Use `.env.example` as a template if environment-file support is added.
+Your real Tavily key should remain local. `.env` is already excluded via `.gitignore` — only `.env.example` is tracked.
 
 ---
 
@@ -332,22 +349,36 @@ Checks configured public platform endpoints for username evidence.
 ```text
 Omen-Osint/
 │
-├── index.html
-├── server.js
+├── app/                     # Next.js App Router
+│   ├── api/
+│   │   ├── health/
+│   │   ├── recon/
+│   │   └── websearch/
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── components/              # UI components (dashboard, sidebar, console, etc.)
+├── lib/                     # Client + server helpers (lib/server/ is server-only)
+├── assets/
+│   └── branding/
+│
+├── index.html               # Legacy static entry point
+├── server.js                # Legacy standalone Node server
+├── ui.js / ui.css / ui-fixes.css   # Legacy frontend assets
 │
 ├── README.md
 ├── LICENSE
 ├── SECURITY.md
+├── CONTRIBUTING.md
 │
 ├── .env.example
 ├── .gitignore
-├── package.json
-│
-└── assets/
-    └── screenshots/
+├── next.config.mjs
+├── tsconfig.json
+├── postcss.config.mjs
+└── package.json
 ```
-
-Only files that actually exist in the repository should be included in this structure.
 
 ---
 

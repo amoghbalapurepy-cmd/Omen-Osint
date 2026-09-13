@@ -2,6 +2,26 @@
   "name": "omen-osint",
   "version": "1.0.0",
   "description": "OMEN — Local-first OSINT & Security Console",
+  "homepage": "https://omen-osint.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amoghbalapurepy-cmd/Omen-Osint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/amoghbalapurepy-cmd/Omen-Osint/issues"
+  },
+  "keywords": [
+    "osint",
+    "security",
+    "cybersecurity",
+    "network-security",
+    "nextjs",
+    "typescript",
+    "dashboard",
+    "privacy",
+    "security-tools"
+  ],
+  "author": "Amogh Balapure",
   "private": true,
   "scripts": {
     "dev": "next dev",
