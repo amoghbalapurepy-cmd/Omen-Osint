@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js CI](https://github.com/amoghbalapurepy-cmd/Omen-Osint/actions/workflows/node-ci.yml/badge.svg)](https://github.com/amoghbalapurepy-cmd/Omen-Osint/actions/workflows/node-ci.yml)
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://omen-osint.vercel.app)
+
 
 **OMEN** is a local-first, browser-based security and OSINT console designed to help users investigate **publicly available information** and perform defensive security checks from a single interface.
 
