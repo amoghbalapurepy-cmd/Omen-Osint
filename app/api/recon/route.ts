@@ -18,6 +18,57 @@ function validUsername(u: string) {
   return /^[A-Za-z0-9._-]{2,64}$/.test(u);
 }
 
+async function checkProvider(spec: ProviderSpec, write: WriteFn) {
+  write({ type: "checking", provider: spec.name });
+  const r = await getJson(spec.url, spec.timeout || 8000);
+  if (r.error) {
+    write({
+      type: "result",
+      provider: spec.name,
+      status: "unverified",
+      reason: r.error,
+      profile: spec.profile,
+    });
+    return;
+  }
+  if (spec.miss && spec.miss(r)) {
+    write({ type: "result", provider: spec.name, status: "miss", http: r.status, profile: spec.profile });
+    return;
+  }
+  if (!r.ok) {
+    write({
+      type: "result",
+      provider: spec.name,
+      status: "unverified",
+      http: r.status,
+      reason: "provider returned a non-success response; not treated as a miss",
+      profile: spec.profile,
+    });
+    return;
+  }
+  try {
+    const parsed = spec.parse(r.data);
+    write({
+      type: "result",
+      provider: spec.name,
+      status: parsed.exists ? "confirmed" : "miss",
+      http: r.status,
+      detail: parsed.detail || "",
+      extra: parsed.extra || "",
+      profile: spec.profile,
+    });
+  } catch {
+    write({
+      type: "result",
+      provider: spec.name,
+      status: "unverified",
+      http: r.status,
+      reason: "response format could not be verified",
+      profile: spec.profile,
+    });
+  }
+}
+
 async function checkPresence(name: string, url: string, profile?: string, write: WriteFn) {
   write({ type: "checking", provider: name });
   const r = await getPresence(url);
@@ -145,61 +196,6 @@ async function runRecon(username: string, write: WriteFn) {
     checkPresence("Pinterest", `https://pinterest.com/${enc}`, `https://pinterest.com/${enc}`, write),
     checkPresence("Tumblr", `https://${enc}.tumblr.com`, `https://${enc}.tumblr.com`, write),
   );
-
-  // npm maintainer evidence check
-  tasks.push(
-    (async () => {
-      write({ type: "checking", provider: "npm" });
-      const npmUrl = `https://registry.npmjs.org/-/v1/search?text=maintainer:${enc}&size=20`;
-      const r = await getJson(npmUrl);
-      if (r.error) {
-        write({ type: "result", provider: "npm", status: "unverified", reason: r.error });
-        return;
-      }
-      if (!r.ok) {
-        write({
-          type: "result",
-          provider: "npm",
-          status: "unverified",
-          http: r.status,
-          reason: "registry response unavailable; not treated as a miss",
-        });
-        return;
-      }
-      const objects = Array.isArray((r.data as { objects?: unknown[] })?.objects)
-        ? ((r.data as { objects: Record<string, unknown>[] }).objects)
-        : [];
-      const exact = objects.filter((o) => {
-        const pkg = o?.package as { maintainers?: { username?: string }[] } | undefined;
-        return (pkg?.maintainers || []).some(
-          (m) => String(m.username || "").toLowerCase() === lower,
-        );
-      });
-      write({
-        type: "result",
-        provider: "npm",
-        status: exact.length ? "evidence" : "none",
-        http: r.status,
-        count: exact.length,
-        packages: exact
-          .slice(0, 10)
-          .map((o) => (o.package as { name?: string })?.name)
-          .filter(Boolean),
-      });
-    })(),
-  );
-
-  await Promise.allSettled(tasks);
-  write({ type: "done" });
-}
-(name).toLowerCase() === lower),
-          detail: name ? `@${name}` : "",
-        };
-      },
-    },
-  ];
-
-  const tasks: Promise<void>[] = specs.map((s) => checkProvider(s, write));
 
   // npm maintainer evidence check
   tasks.push(
