@@ -80,6 +80,37 @@ export async function postJson(
   }
 }
 
+export async function getPresence(
+  url: string,
+  timeout = 8000,
+  extraHeaders: Record<string, string> = {},
+): Promise<FetchResult> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeout);
+  try {
+    const r = await fetch(url, {
+      headers: { "User-Agent": UA, ...extraHeaders },
+      signal: ac.signal,
+      redirect: "manual",
+    });
+
+    const isRedirect = r.status === 301 || r.status === 302 || r.status === 307 || r.status === 308;
+    const location = r.headers.get("location") || "";
+    const isLoginRedirect = location.includes("login") || location.includes("auth");
+
+    const ok = (r.ok || isRedirect) && !isLoginRedirect;
+
+    return { ok, status: r.status, finalUrl: r.url };
+  } catch (e) {
+    const err = e as { name?: string; message?: string };
+    return {
+      error: err?.name === "AbortError" ? "timeout" : err?.message || "network error",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Build an NDJSON streaming Response from an async producer. */
 export function ndjsonStream(
   producer: (write: (event: Record<string, unknown>) => void) => Promise<void>,
