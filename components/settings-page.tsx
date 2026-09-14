@@ -37,21 +37,25 @@ export function SettingsPage() {
   const [testStatus, setTestStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  function saveKey() {
+  async function saveKey() {
     if (!apiKey.trim()) {
       setKeyStatus("Enter a key before saving.");
       return;
     }
-    // SECURITY: the secret is never stored in the browser, logged, or committed.
-    // The live credential is read from the server environment (TAVILY_API_KEY).
-    // We only record that a provider is configured, then discard the value.
     try {
-      window.localStorage.setItem("omen.provider.configured", "1");
-    } catch {
-      /* ignore */
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tavilyApiKey: apiKey.trim() }),
+      });
+
+      if (!res.ok) throw new Error("Server responded with error");
+
+      setApiKey("");
+      setKeyStatus("Credential saved successfully to the server.");
+    } catch (e) {
+      setKeyStatus("Failed to save credential. Please check your connection.");
     }
-    setApiKey("");
-    setKeyStatus("Credential received and cleared. It is never displayed after saving.");
   }
 
   async function testConnection() {

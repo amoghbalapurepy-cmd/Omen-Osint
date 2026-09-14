@@ -1,11 +1,8 @@
 import { ndjsonStream, postJson } from "@/lib/server/net";
+import { getTavilyKey } from "@/lib/server/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function getTavilyApiKey(): string {
-  return process.env.TAVILY_API_KEY?.trim() || "";
-}
 
 type WriteFn = (event: Record<string, unknown>) => void;
 
@@ -74,7 +71,7 @@ function providerErrorCode(status?: number): string {
 }
 
 async function runWebSearch(input: string, write: WriteFn) {
-  const apiKey = getTavilyApiKey();
+  const apiKey = await getTavilyKey();
 
   if (!apiKey) {
     write({
