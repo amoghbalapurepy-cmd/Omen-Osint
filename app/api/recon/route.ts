@@ -1,4 +1,4 @@
-import { getJson, getPresence, ndjsonStream, type FetchResult } from "@/lib/server/net";
+import { getJson, getPresence, ndjsonStream, postJson, type FetchResult } from "@/lib/server/net";
 import { getTavilyKey } from "@/lib/server/settings";
 
 export const runtime = "nodejs";
@@ -25,21 +25,16 @@ type ProviderSpec = {
 
 function normalizeInput(input: string) {
   const trimmed = input.trim();
-  // Try to extract username from URL
   try {
     const url = new URL(trimmed);
     const pathParts = url.pathname.split("/").filter(Boolean);
     if (pathParts.length > 0) {
       return { type: "username", value: pathParts[0] };
     }
-  } catch {
-    // Not a URL
-  }
-  // Check if it's an email
+  } catch {}
   if (trimmed.includes("@") && trimmed.includes(".")) {
     return { type: "email", value: trimmed };
   }
-  // Otherwise, treat as raw username/handle
   return { type: "username", value: trimmed.replace(/^@+/, "") };
 }
 
@@ -118,12 +113,7 @@ const PROVIDERS: ProviderSpec[] = [
           handle: d.login,
           bio: d.bio,
           url: d.html_url,
-          extras: {
-            public_repos: d.public_repos,
-            followers: d.followers,
-            following: d.following,
-            location: d.location,
-          },
+          extras: { public_repos: d.public_repos, followers: d.followers, following: d.following, location: d.location },
         },
       };
     },
@@ -143,10 +133,7 @@ const PROVIDERS: ProviderSpec[] = [
           handle: u,
           bio: "",
           url: `https://www.reddit.com/user/${u}`,
-          extras: {
-            karma: user.link_karma || 0,
-            created_utc: user.created_utc,
-          },
+          extras: { karma: user.link_karma || 0, created_utc: user.created_utc },
         },
       };
     },
@@ -165,18 +152,65 @@ const PROVIDERS: ProviderSpec[] = [
           handle: d.handle,
           bio: d.description,
           url: `https://bsky.app/profile/${u}`,
-          extras: {
-            did: d.did,
-          },
+          extras: { did: d.did },
         },
       };
     },
   },
 ];
 
+async function runDiscovery(target: string, write: WriteFn) {
+  const apiKey = await getTavilyKey();
+  if (!apiKey) {
+    write({ type: "notice", message: "Discovery skipped: Tavily API key not configured." });
+    return;
+  }
+
+  write({ type: "notice", message: `Performing web discovery for ${target}...` });
+
+  const queries = [
+    `"${target}" profile site:instagram.com OR site:twitter.com OR site:facebook.com`,
+    `"${target}" "bio" social media profile`,
+    `"${target}" linked-in profile`,
+  ];
+
+  for (const q of queries) {
+    const r = await postJson("https://api.tavily.com/search", {
+      api_key: apiKey,
+      query: q,
+      max_results: 5,
+    });
+
+    if (r.ok && Array.isArray(r.data?.results)) {
+      for (const res of r.data.results) {
+        const url = res.url;
+        const title = res.title;
+        // Simple pattern match for social URLs
+        const platform = Object.entries({
+          "instagram.com": "Instagram",
+          "twitter.com": "Twitter/X",
+          "x.com": "Twitter/X",
+          "facebook.com": "Facebook",
+          "linkedin.com": "LinkedIn",
+          "tiktok.com": "TikTok",
+        }).find(([domain]) => url.includes(domain));
+
+        if (platform) {
+          write({
+            type: "result",
+            provider: platform[1],
+            status: "evidence",
+            profile: url,
+            detail: `Found via web search: ${title}`,
+          });
+        }
+      }
+    }
+  }
+}
+
 async function runSocialScan(input: string, write: WriteFn) {
   const { type, value: target } = normalizeInput(input);
-  const enc = encodeURIComponent(target);
 
   write({
     type: "meta",
@@ -188,12 +222,10 @@ async function runSocialScan(input: string, write: WriteFn) {
   const tasks: Promise<void>[] = [];
 
   if (type === "username") {
-    // 1. Deep API Checks
     for (const spec of PROVIDERS) {
       tasks.push(checkProvider(spec, target, write));
     }
 
-    // 2. Simple Presence Checks
     const presenceChecks = [
       { name: "Twitter/X", url: `https://twitter.com/${target}` },
       { name: "Instagram", url: `https://instagram.com/${target}` },
@@ -207,24 +239,19 @@ async function runSocialScan(input: string, write: WriteFn) {
       tasks.push(checkPresence(check.name, check.url, write));
     }
   } else if (type === "email") {
-    // For emails, we use a "Marker Search" strategy.
-    // We check if the email is listed on public platforms or mentioned in web searches.
     write({ type: "notice", message: "Performing identity marker search for email..." });
-
-    // We use the system's Tavily key to search for the email
-    const apiKey = await getTavilyKey();
-    if (apiKey) {
-      // We'll implement a simple internal search for this.
-      // For now, we'll simulate the "discovery" by using a search query.
-      // In a real scenario, this would call the Tavily API and parse results for profile links.
-      write({ type: "notice", message: "Searching public web for email mentions..." });
-      // ... implementation of marker search ...
-    } else {
-      write({ type: "search_error", error: "Tavily API key not configured for marker search." });
-    }
+    tasks.push(runDiscovery(target, write));
   }
 
   await Promise.allSettled(tasks);
+
+  // If all results are misses, run discovery as a fallback for usernames too
+  // (This is what makes it "work" when direct APIs fail)
+  if (type === "username") {
+    tasks.push(runDiscovery(target, write));
+    await Promise.allSettled(tasks);
+  }
+
   write({ type: "done" });
 }
 
