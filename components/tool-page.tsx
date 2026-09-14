@@ -15,7 +15,13 @@ type ReconResult = {
   status: string;
   detail?: string;
   extra?: string;
-  profile?: string;
+  profile?: string | {
+    name?: string;
+    handle: string;
+    bio?: string;
+    url: string;
+    extras: Record<string, any>;
+  };
   reason?: string;
   packages?: string[];
   count?: number;
@@ -30,6 +36,46 @@ const RECON_TONE: Record<string, "green" | "cyan" | "warning" | "muted" | "error
   none: "muted",
   checking: "cyan",
 };
+
+function ProfileCard({ profile }: { profile: ReconResult["profile"] }) {
+  if (typeof profile === "string") return null;
+  if (!profile) return null;
+
+  return (
+    <div className="rounded-md border border-line bg-panel/60 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-full bg-cyan/20 text-cyan">
+            <span className="text-sm font-bold">{profile.handle[0]?.toUpperCase()}</span>
+          </div>
+          <div>
+            <p className="text-[14px] font-medium text-foreground">{profile.name || profile.handle}</p>
+            <p className="mono text-[11px] text-muted">@{profile.handle}</p>
+          </div>
+        </div>
+        <a
+          href={profile.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[11px] text-cyan hover:opacity-80"
+        >
+          Visit <ExternalLink size={11} />
+        </a>
+      </div>
+      {profile.bio && (
+        <p className="text-[12px] leading-relaxed text-muted">{profile.bio}</p>
+      )}
+      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-line/50">
+        {Object.entries(profile.extras).map(([key, val]) => (
+          <div key={key} className="flex flex-col">
+            <span className="text-[10px] uppercase text-muted">{key.replace("_", " ")}</span>
+            <span className="mono text-[12px] text-foreground">{String(val)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ToolPage({
   module,
@@ -229,46 +275,58 @@ export function ToolPage({
 
       {/* RESULTS */}
       {reconList.length > 0 && (
-        <Panel>
-          <PanelHeader
-            title="Provider Verification"
-            action={<span className="label !text-muted">{reconList.length} sources</span>}
-          />
-          <ul className="divide-y divide-line">
-            {reconList.map((r) => (
-              <li key={r.provider} className="flex items-center gap-3 px-4 py-3">
-                <StatusDot
-                  tone={RECON_TONE[r.status] ?? "muted"}
-                  pulse={r.status === "checking"}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[14px] text-foreground">{r.provider}</span>
-                    <span
-                      className="mono text-[10px] uppercase tracking-[0.12em]"
-                      style={{ color: `var(--${RECON_TONE[r.status] ?? "muted"})` }}
-                    >
-                      {r.status}
-                    </span>
+        <div className="space-y-4">
+          <Panel>
+            <PanelHeader
+              title="Provider Verification"
+              action={<span className="label !text-muted">{reconList.length} sources</span>}
+            />
+            <ul className="divide-y divide-line">
+              {reconList.map((r) => (
+                <li key={r.provider} className="flex items-center gap-3 px-4 py-3">
+                  <StatusDot
+                    tone={RECON_TONE[r.status] ?? "muted"}
+                    pulse={r.status === "checking"}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] text-foreground">{r.provider}</span>
+                      <span
+                        className="mono text-[10px] uppercase tracking-[0.12em]"
+                        style={{ color: `var(--${RECON_TONE[r.status] ?? "muted"})` }}
+                      >
+                        {r.status}
+                      </span>
+                    </div>
+                    <p className="truncate text-[12px] text-muted">
+                      {r.detail || r.reason || r.extra || (r.packages?.length ? r.packages.join(", ") : "—")}
+                    </p>
                   </div>
-                  <p className="truncate text-[12px] text-muted">
-                    {r.detail || r.reason || r.extra || (r.packages?.length ? r.packages.join(", ") : "—")}
-                  </p>
+                  {typeof r.profile === "string" && (r.status === "confirmed" || r.status === "evidence") && (
+                    <a
+                      href={r.profile}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-[12px] text-cyan hover:opacity-80"
+                    >
+                      View <ExternalLink size={12} />
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {reconList
+              .filter((r) => r.status === "confirmed" && typeof r.profile === "object" && r.profile !== null)
+              .map((r) => (
+                <div key={r.provider} className="space-y-2">
+                  <p className="mono text-[10px] uppercase tracking-widest text-muted px-1">{r.provider}</p>
+                  <ProfileCard profile={r.profile!} />
                 </div>
-                {r.profile && (r.status === "confirmed" || r.status === "evidence") && (
-                  <a
-                    href={r.profile}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[12px] text-cyan hover:opacity-80"
-                  >
-                    View <ExternalLink size={12} />
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Panel>
+              ))}
+          </div>
+        </div>
       )}
 
       {web.length > 0 && (
