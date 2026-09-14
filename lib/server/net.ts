@@ -91,9 +91,16 @@ export async function getPresence(
     const r = await fetch(url, {
       headers: { "User-Agent": UA, ...extraHeaders },
       signal: ac.signal,
-      redirect: "manual", // Don't follow redirects to login pages
+      redirect: "manual",
     });
-    return { ok: r.ok, status: r.status, finalUrl: r.url };
+
+    const isRedirect = r.status === 301 || r.status === 302 || r.status === 307 || r.status === 308;
+    const location = r.headers.get("location") || "";
+    const isLoginRedirect = location.includes("login") || location.includes("auth");
+
+    const ok = (r.ok || isRedirect) && !isLoginRedirect;
+
+    return { ok, status: r.status, finalUrl: r.url };
   } catch (e) {
     const err = e as { name?: string; message?: string };
     return {
@@ -105,7 +112,6 @@ export async function getPresence(
 }
 
 /** Build an NDJSON streaming Response from an async producer. */
-
 export function ndjsonStream(
   producer: (write: (event: Record<string, unknown>) => void) => Promise<void>,
   extraInit: (write: (event: Record<string, unknown>) => void) => void = () => {},

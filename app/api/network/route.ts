@@ -37,15 +37,27 @@ async function runDiagnostics(target: string, write: WriteFn) {
     write({ type: "result", label: "Reachability", value: "Offline / Filtered", tone: "error" });
   }
 
-  // 3. Basic HTTP Check
+  // 3. Basic HTTP/HTTPS Check
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`http://${target}`, { signal: controller });
-    clearTimeout(timeout);
-    write({ type: "result", label: "HTTP Status", value: `${res.status} ${res.statusText}`, tone: res.ok ? "green" : "warning" });
+    const protocols = ["https", "http"];
+    let success = false;
+    for (const proto of protocols) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${proto}://${target}`, { signal: controller });
+        clearTimeout(timeout);
+        write({ type: "result", label: `${proto.toUpperCase()} Status`, value: `${res.status} ${res.statusText}`, tone: res.ok ? "green" : "warning" });
+        if (res.ok) success = true;
+      } catch (e) {
+        write({ type: "result", label: `${proto.toUpperCase()} Status`, value: "unreachable", tone: "warning" });
+      }
+    }
+    if (!success) {
+      write({ type: "notice", message: "Target is not reachable via standard web ports (80/443)." });
+    }
   } catch (e) {
-    write({ type: "result", label: "HTTP Status", value: "not reachable on port 80", tone: "warning" });
+    write({ type: "result", label: "Web Check", value: "failed", tone: "error" });
   }
 }
 
