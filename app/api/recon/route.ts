@@ -1,4 +1,4 @@
-import { getJson, ndjsonStream, type FetchResult } from "@/lib/server/net";
+import { getJson, getPresence, ndjsonStream, type FetchResult } from "@/lib/server/net";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +67,43 @@ async function checkProvider(spec: ProviderSpec, write: WriteFn) {
       profile: spec.profile,
     });
   }
+}
+
+async function checkPresence(name: string, url: string, profile?: string, write: WriteFn) {
+  write({ type: "checking", provider: name });
+  const r = await getPresence(url);
+  if (r.error) {
+    write({
+      type: "result",
+      provider: name,
+      status: "unverified",
+      reason: r.error,
+      profile,
+    });
+    return;
+  }
+  if (r.status === 404) {
+    write({ type: "result", provider: name, status: "miss", http: r.status, profile });
+    return;
+  }
+  if (r.ok) {
+    write({
+      type: "result",
+      provider: name,
+      status: "confirmed",
+      http: r.status,
+      profile,
+    });
+    return;
+  }
+  write({
+    type: "result",
+    provider: name,
+    status: "unverified",
+    http: r.status,
+    reason: "Unexpected response status",
+    profile,
+  });
 }
 
 async function runRecon(username: string, write: WriteFn) {
@@ -149,6 +186,16 @@ async function runRecon(username: string, write: WriteFn) {
   ];
 
   const tasks: Promise<void>[] = specs.map((s) => checkProvider(s, write));
+
+  // Presence-based checks for social media
+  tasks.push(
+    checkPresence("Twitter/X", `https://twitter.com/${enc}`, `https://twitter.com/${enc}`, write),
+    checkPresence("Instagram", `https://instagram.com/${enc}`, `https://instagram.com/${enc}`, write),
+    checkPresence("Facebook", `https://facebook.com/${enc}`, `https://facebook.com/${enc}`, write),
+    checkPresence("TikTok", `https://tiktok.com/@${enc}`, `https://tiktok.com/@${enc}`, write),
+    checkPresence("Pinterest", `https://pinterest.com/${enc}`, `https://pinterest.com/${enc}`, write),
+    checkPresence("Tumblr", `https://${enc}.tumblr.com`, `https://${enc}.tumblr.com`, write),
+  );
 
   // npm maintainer evidence check
   tasks.push(
