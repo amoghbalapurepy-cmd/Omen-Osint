@@ -9,6 +9,11 @@ export const dynamic = "force-dynamic";
 
 type WriteFn = (event: Record<string, unknown>) => void;
 
+function isValidTarget(target: string) {
+  // Allow only hostnames/IPs: alphanumeric, dots, hyphens. Max length 253.
+  return /^[a-zA-Z0-9.-]{1,253}$/.test(target);
+}
+
 async function runDiagnostics(target: string, write: WriteFn) {
   write({ type: "notice", message: `Running diagnostics for ${target}...` });
 
@@ -22,8 +27,8 @@ async function runDiagnostics(target: string, write: WriteFn) {
 
   // 2. Reachability & Latency (Ping)
   try {
-    // Windows ping: -n 1 (one packet)
-    const { stdout } = await execPromise(`ping -n 1 ${target}`);
+    const flag = process.platform === "win32" ? "-n" : "-c";
+    const { stdout } = await execPromise(`ping ${flag} 1 ${target}`);
     const match = stdout.match(/time[=<]\s*(\d+)\s*ms/);
     const latency = match ? `${match[1]} ms` : "reachable";
     write({ type: "result", label: "Reachability", value: "Online", tone: "green" });
@@ -50,6 +55,10 @@ export async function GET(req: Request) {
 
   if (!target) {
     return Response.json({ error: "Query parameter 'q' is required" }, { status: 400 });
+  }
+
+  if (!isValidTarget(target)) {
+    return Response.json({ error: "Invalid target. Please provide a valid hostname or IP address." }, { status: 400 });
   }
 
   return ndjsonStream(

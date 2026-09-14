@@ -6,6 +6,10 @@ export const dynamic = "force-dynamic";
 
 type WriteFn = (event: Record<string, unknown>) => void;
 
+function isValidDomain(domain: string) {
+  return /^[a-zA-Z0-9.-]{1,253}$/.test(domain);
+}
+
 async function checkDNS(domain: string, write: WriteFn) {
   write({ type: "notice", message: `Analyzing DNS records for ${domain}...` });
 
@@ -59,6 +63,10 @@ export async function GET(req: Request) {
 
   if (!target) {
     return Response.json({ error: "Query parameter 'q' is required" }, { status: 400 });
+  }
+
+  if (!isValidDomain(target)) {
+    return Response.json({ error: "Invalid domain name provided." }, { status: 400 });
   }
 
   return ndjsonStream(

@@ -60,6 +60,10 @@ export async function GET(req: Request) {
     return Response.json({ error: "Query parameter 'q' is required" }, { status: 400 });
   }
 
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return Response.json({ error: "Invalid URL. URL must start with http:// or https://" }, { status: 400 });
+  }
+
   return ndjsonStream(
     (write) => analyzeUrl(url, write),
     (write) => write({ type: "meta", target: url, mode: "URL Analysis" })

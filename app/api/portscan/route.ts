@@ -6,6 +6,10 @@ export const dynamic = "force-dynamic";
 
 type WriteFn = (event: Record<string, unknown>) => void;
 
+function isValidTarget(target: string) {
+  return /^[a-zA-Z0-9.-]{1,253}$/.test(target);
+}
+
 async function checkPort(host: string, port: number): Promise<"open" | "closed" | "filtered"> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -67,6 +71,10 @@ export async function GET(req: Request) {
 
   if (!target) {
     return Response.json({ error: "Query parameter 'q' is required" }, { status: 400 });
+  }
+
+  if (!isValidTarget(target)) {
+    return Response.json({ error: "Invalid target. Please provide a valid hostname or IP address." }, { status: 400 });
   }
 
   return ndjsonStream(
