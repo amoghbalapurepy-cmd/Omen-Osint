@@ -1,4 +1,4 @@
-import { getJson, ndjsonStream, type FetchResult } from "@/lib/server/net";
+import { getJson, getPresence, ndjsonStream, type FetchResult } from "@/lib/server/net";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,55 +18,41 @@ function validUsername(u: string) {
   return /^[A-Za-z0-9._-]{2,64}$/.test(u);
 }
 
-async function checkProvider(spec: ProviderSpec, write: WriteFn) {
-  write({ type: "checking", provider: spec.name });
-  const r = await getJson(spec.url, spec.timeout || 8000);
+async function checkPresence(name: string, url: string, profile?: string, write: WriteFn) {
+  write({ type: "checking", provider: name });
+  const r = await getPresence(url);
   if (r.error) {
     write({
       type: "result",
-      provider: spec.name,
+      provider: name,
       status: "unverified",
       reason: r.error,
-      profile: spec.profile,
+      profile,
     });
     return;
   }
-  if (spec.miss && spec.miss(r)) {
-    write({ type: "result", provider: spec.name, status: "miss", http: r.status, profile: spec.profile });
+  if (r.status === 404) {
+    write({ type: "result", provider: name, status: "miss", http: r.status, profile });
     return;
   }
-  if (!r.ok) {
+  if (r.ok) {
     write({
       type: "result",
-      provider: spec.name,
-      status: "unverified",
+      provider: name,
+      status: "confirmed",
       http: r.status,
-      reason: "provider returned a non-success response; not treated as a miss",
-      profile: spec.profile,
+      profile,
     });
     return;
   }
-  try {
-    const parsed = spec.parse(r.data);
-    write({
-      type: "result",
-      provider: spec.name,
-      status: parsed.exists ? "confirmed" : "miss",
-      http: r.status,
-      detail: parsed.detail || "",
-      extra: parsed.extra || "",
-      profile: spec.profile,
-    });
-  } catch {
-    write({
-      type: "result",
-      provider: spec.name,
-      status: "unverified",
-      http: r.status,
-      reason: "response format could not be verified",
-      profile: spec.profile,
-    });
-  }
+  write({
+    type: "result",
+    provider: name,
+    status: "unverified",
+    http: r.status,
+    reason: "Unexpected response status",
+    profile,
+  });
 }
 
 async function runRecon(username: string, write: WriteFn) {
@@ -142,6 +128,71 @@ async function runRecon(username: string, write: WriteFn) {
         const name = (d as { data?: { name?: string } })?.data?.name;
         return {
           exists: !!(name && String(name).toLowerCase() === lower),
+          detail: name ? `@${name}` : "",
+        };
+      },
+    },
+  ];
+
+  const tasks: Promise<void>[] = specs.map((s) => checkProvider(s, write));
+
+  // Presence-based checks for social media
+  tasks.push(
+    checkPresence("Twitter/X", `https://twitter.com/${enc}`, `https://twitter.com/${enc}`, write),
+    checkPresence("Instagram", `https://instagram.com/${enc}`, `https://instagram.com/${enc}`, write),
+    checkPresence("Facebook", `https://facebook.com/${enc}`, `https://facebook.com/${enc}`, write),
+    checkPresence("TikTok", `https://tiktok.com/@${enc}`, `https://tiktok.com/@${enc}`, write),
+    checkPresence("Pinterest", `https://pinterest.com/${enc}`, `https://pinterest.com/${enc}`, write),
+    checkPresence("Tumblr", `https://${enc}.tumblr.com`, `https://${enc}.tumblr.com`, write),
+  );
+
+  // npm maintainer evidence check
+  tasks.push(
+    (async () => {
+      write({ type: "checking", provider: "npm" });
+      const npmUrl = `https://registry.npmjs.org/-/v1/search?text=maintainer:${enc}&size=20`;
+      const r = await getJson(npmUrl);
+      if (r.error) {
+        write({ type: "result", provider: "npm", status: "unverified", reason: r.error });
+        return;
+      }
+      if (!r.ok) {
+        write({
+          type: "result",
+          provider: "npm",
+          status: "unverified",
+          http: r.status,
+          reason: "registry response unavailable; not treated as a miss",
+        });
+        return;
+      }
+      const objects = Array.isArray((r.data as { objects?: unknown[] })?.objects)
+        ? ((r.data as { objects: Record<string, unknown>[] }).objects)
+        : [];
+      const exact = objects.filter((o) => {
+        const pkg = o?.package as { maintainers?: { username?: string }[] } | undefined;
+        return (pkg?.maintainers || []).some(
+          (m) => String(m.username || "").toLowerCase() === lower,
+        );
+      });
+      write({
+        type: "result",
+        provider: "npm",
+        status: exact.length ? "evidence" : "none",
+        http: r.status,
+        count: exact.length,
+        packages: exact
+          .slice(0, 10)
+          .map((o) => (o.package as { name?: string })?.name)
+          .filter(Boolean),
+      });
+    })(),
+  );
+
+  await Promise.allSettled(tasks);
+  write({ type: "done" });
+}
+(name).toLowerCase() === lower),
           detail: name ? `@${name}` : "",
         };
       },

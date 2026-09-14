@@ -83,87 +83,29 @@ export const runRecon: Runner = (input, { onEvent, signal }) =>
     signal,
   );
 
-// ---------- PLACEHOLDER services (clearly marked demo output) ----------
-// These return realistic demo state so the modules are fully navigable.
-// Wire them to the corresponding OMEN backend endpoints to run live checks.
+/** Domain / email exposure lookup. */
+export const runDomainLookup: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/domain?q=${encodeURIComponent(input)}`, onEvent, signal);
 
-function demo(
-  rows: { label: string; value: string; tone?: "cyan" | "green" | "warning" | "error" }[],
-): Runner {
-  return async (input, { onEvent, signal }) => {
-    onEvent({
-      type: "notice",
-      message:
-        "Demo output — connect the OMEN backend endpoint for this module to run a live check.",
-    });
-    for (const row of rows) {
-      if (signal?.aborted) break;
-      await new Promise((r) => setTimeout(r, 120));
-      onEvent({
-        type: "result",
-        kind: "generic",
-        label: row.label,
-        value: row.value.replace("{q}", input || "—"),
-        tone: row.tone ?? "cyan",
-      });
-    }
-    onEvent({ type: "done" });
-  };
-}
+/** URL safety analysis. */
+export const runUrlAnalysis: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/urlanalysis?q=${encodeURIComponent(input)}`, onEvent, signal);
 
-/** PLACEHOLDER: domain / email exposure lookup. */
-export const runDomainLookup: Runner = demo([
-  { label: "Target", value: "{q}" },
-  { label: "DNS A record", value: "resolved (demo)", tone: "green" },
-  { label: "MX / mail", value: "configured (demo)", tone: "green" },
-  { label: "SPF", value: "present (demo)", tone: "green" },
-  { label: "DMARC", value: "policy: quarantine (demo)", tone: "warning" },
-  { label: "Breach exposure", value: "no public demo data", tone: "cyan" },
-]);
+/** Network diagnostics. */
+export const runNetworkDiagnostics: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/network?q=${encodeURIComponent(input)}`, onEvent, signal);
 
-/** PLACEHOLDER: URL safety analysis. */
-export const runUrlAnalysis: Runner = demo([
-  { label: "URL", value: "{q}" },
-  { label: "Scheme", value: "https (demo)", tone: "green" },
-  { label: "Redirect chain", value: "0 hops (demo)", tone: "green" },
-  { label: "Reputation", value: "no signals (demo)", tone: "green" },
-  { label: "Security headers", value: "partial (demo)", tone: "warning" },
-]);
+/** Authorized public port inspection. */
+export const runPortScan: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/portscan?q=${encodeURIComponent(input)}`, onEvent, signal);
 
-/** PLACEHOLDER: network diagnostics. */
-export const runNetworkDiagnostics: Runner = demo([
-  { label: "Endpoint", value: "{q}" },
-  { label: "Reachability", value: "reachable (demo)", tone: "green" },
-  { label: "Latency", value: "24 ms (demo)", tone: "cyan" },
-  { label: "Geolocation", value: "public region (demo)", tone: "cyan" },
-  { label: "Reverse DNS", value: "resolved (demo)", tone: "green" },
-]);
+/** WHOIS / registration records. */
+export const runWhois: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/whois?q=${encodeURIComponent(input)}`, onEvent, signal);
 
-/** PLACEHOLDER: authorized public port inspection. */
-export const runPortScan: Runner = demo([
-  { label: "Host", value: "{q}" },
-  { label: "80 / http", value: "open (demo)", tone: "cyan" },
-  { label: "443 / https", value: "open (demo)", tone: "green" },
-  { label: "22 / ssh", value: "filtered (demo)", tone: "warning" },
-  { label: "Scope", value: "authorized targets only", tone: "cyan" },
-]);
-
-/** PLACEHOLDER: whois / registration records. */
-export const runWhois: Runner = demo([
-  { label: "Domain", value: "{q}" },
-  { label: "Registrar", value: "public registrar (demo)", tone: "cyan" },
-  { label: "Created", value: "2014-01-01 (demo)", tone: "cyan" },
-  { label: "Status", value: "clientTransferProhibited (demo)", tone: "green" },
-]);
-
-/** PLACEHOLDER: OSINT source directory filter. */
-export const runOsintSources: Runner = demo([
-  { label: "GitHub", value: "public code & repos", tone: "green" },
-  { label: "Bluesky", value: "public social profiles", tone: "green" },
-  { label: "Reddit", value: "public user activity", tone: "green" },
-  { label: "npm", value: "public maintainer evidence", tone: "green" },
-  { label: "Keybase", value: "public identity proofs", tone: "green" },
-]);
+/** OSINT source directory filter. */
+export const runOsintSources: Runner = (input, { onEvent, signal }) =>
+  streamNdjson(`/api/recon?username=${encodeURIComponent(input)}`, onEvent, signal);
 
 /** Route a module id to its runner. */
 export function runnerFor(moduleId: string): Runner {

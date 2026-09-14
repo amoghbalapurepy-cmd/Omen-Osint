@@ -1,3 +1,8 @@
+declare module "*.css" {
+  const content: { [key: string]: string };
+  export default content;
+}
+
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
