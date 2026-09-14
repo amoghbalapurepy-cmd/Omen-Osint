@@ -32,26 +32,38 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export function SettingsPage() {
   const { clear } = useOmenLog();
-  const [apiKey, setApiKey] = useState("");
+  const [tavilyKey, setTavilyKey] = useState("");
+  const [googleKey, setGoogleKey] = useState("");
+  const [googleCx, setGoogleCx] = useState("");
   const [keyStatus, setKeyStatus] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  function saveKey() {
-    if (!apiKey.trim()) {
-      setKeyStatus("Enter a key before saving.");
+  async function saveSettings() {
+    if (!tavilyKey.trim() && !googleKey.trim()) {
+      setKeyStatus("Enter at least one API key before saving.");
       return;
     }
-    // SECURITY: the secret is never stored in the browser, logged, or committed.
-    // The live credential is read from the server environment (TAVILY_API_KEY).
-    // We only record that a provider is configured, then discard the value.
     try {
-      window.localStorage.setItem("omen.provider.configured", "1");
-    } catch {
-      /* ignore */
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tavilyApiKey: tavilyKey.trim(),
+          googleApiKey: googleKey.trim(),
+          googleCx: googleCx.trim(),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Server responded with error");
+
+      setTavilyKey("");
+      setGoogleKey("");
+      setGoogleCx("");
+      setKeyStatus("Credentials saved successfully to the server.");
+    } catch (e) {
+      setKeyStatus("Failed to save credentials. Please check your connection.");
     }
-    setApiKey("");
-    setKeyStatus("Credential received and cleared. It is never displayed after saving.");
   }
 
   async function testConnection() {
@@ -88,37 +100,71 @@ export function SettingsPage() {
       <Panel>
         <PanelHeader icon={<KeyRound size={15} />} title="Public Web Search" />
         <div className="space-y-4 p-4">
-          <div>
-            <label htmlFor="tavily-key" className="label mb-2 block !text-secondary">
-              Tavily API Key
-            </label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                id="tavily-key"
-                type="password"
-                autoComplete="off"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••••••••••••••"
-                className="min-w-0 flex-1 rounded-md border border-line bg-deep/70 px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-muted focus:border-cyan"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={saveKey}
-                  className="rounded-md border border-cyan-border bg-cyan/10 px-4 py-2 text-[13px] text-cyan transition-colors hover:bg-cyan hover:text-background"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={testConnection}
-                  disabled={testing}
-                  className="rounded-md border border-line px-4 py-2 text-[13px] text-secondary transition-colors hover:border-cyan-border hover:text-foreground disabled:opacity-50"
-                >
-                  {testing ? "Testing…" : "Test Connection"}
-                </button>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="tavily-key" className="label mb-2 block !text-secondary">
+                Tavily API Key
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="tavily-key"
+                  type="password"
+                  autoComplete="off"
+                  value={tavilyKey}
+                  onChange={(e) => setTavilyKey(e.target.value)}
+                  placeholder="••••••••••••••••••••"
+                  className="min-w-0 flex-1 rounded-md border border-line bg-deep/70 px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-muted focus:border-cyan"
+                />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="google-key" className="label mb-2 block !text-secondary">
+                  Google API Key
+                </label>
+                <input
+                  id="google-key"
+                  type="password"
+                  autoComplete="off"
+                  value={googleKey}
+                  onChange={(e) => setGoogleKey(e.target.value)}
+                  placeholder="••••••••••••••••••••"
+                  className="w-full rounded-md border border-line bg-deep/70 px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-muted focus:border-cyan"
+                />
+              </div>
+              <div>
+                <label htmlFor="google-cx" className="label mb-2 block !text-secondary">
+                  Google Search Engine ID (CX)
+                </label>
+                <input
+                  id="google-cx"
+                  type="text"
+                  autoComplete="off"
+                  value={googleCx}
+                  onChange={(e) => setGoogleCx(e.target.value)}
+                  placeholder="example: 123456789..."
+                  className="w-full rounded-md border border-line bg-deep/70 px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-muted focus:border-cyan"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={saveSettings}
+                className="rounded-md border border-cyan-border bg-cyan/10 px-4 py-2 text-[13px] text-cyan transition-colors hover:bg-cyan hover:text-background"
+              >
+                Save All
+              </button>
+              <button
+                type="button"
+                onClick={testConnection}
+                disabled={testing}
+                className="rounded-md border border-line px-4 py-2 text-[13px] text-secondary transition-colors hover:border-cyan-border hover:text-foreground disabled:opacity-50"
+              >
+                {testing ? "Testing…" : "Test Connection"}
+              </button>
             </div>
             {keyStatus && (
               <p className="mt-2 flex items-center gap-1.5 text-[12px] text-green">
@@ -184,7 +230,9 @@ export function SettingsPage() {
                 } catch {
                   /* ignore */
                 }
-                setApiKey("");
+                setTavilyKey("");
+                setGoogleKey("");
+                setGoogleCx("");
                 setKeyStatus(null);
                 setTestStatus(null);
               }}
