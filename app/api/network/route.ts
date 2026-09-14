@@ -45,7 +45,7 @@ async function runDiagnostics(target: string, write: WriteFn) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(`${proto}://${target}`, { signal: controller });
+        const res = await fetch(`${proto}://${target}`, { signal: controller.signal });
         clearTimeout(timeout);
         write({ type: "result", label: `${proto.toUpperCase()} Status`, value: `${res.status} ${res.statusText}`, tone: res.ok ? "green" : "warning" });
         if (res.ok) success = true;

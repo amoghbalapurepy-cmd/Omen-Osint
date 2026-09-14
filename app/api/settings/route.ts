@@ -5,26 +5,44 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const settings = await getSettings();
-  // Do NOT return the API key to the client for security reasons.
-  // Just return whether it is configured.
-  return Response.json({
-    tavilyApiKeyConfigured: Boolean(settings.tavilyApiKey),
-  }, { headers: { "Cache-Control": "no-store" } });
+  const hasTavily = Boolean(settings.tavilyApiKey || process.env.TAVILY_API_KEY);
+  const hasGoogle = Boolean((settings.googleApiKey || process.env.GOOGLE_API_KEY) && (settings.googleCx || process.env.GOOGLE_CX));
+
+  return Response.json(
+    {
+      tavilyApiKeyConfigured: hasTavily,
+      googleApiKeyConfigured: hasGoogle,
+      webSearchConfigured: hasTavily || hasGoogle,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { tavilyApiKey } = body;
+    const { tavilyApiKey, googleApiKey, googleCx } = body ?? {};
 
-    if (tavilyApiKey === undefined) {
-      return Response.json({ error: "Missing tavilyApiKey in request body" }, { status: 400 });
+    const updates: Record<string, string> = {};
+
+    if (tavilyApiKey !== undefined) {
+      updates.tavilyApiKey = typeof tavilyApiKey === "string" ? tavilyApiKey.trim() : "";
+    }
+    if (googleApiKey !== undefined) {
+      updates.googleApiKey = typeof googleApiKey === "string" ? googleApiKey.trim() : "";
+    }
+    if (googleCx !== undefined) {
+      updates.googleCx = typeof googleCx === "string" ? googleCx.trim() : "";
     }
 
-    await saveSettings({ tavilyApiKey });
+    if (!Object.keys(updates).length) {
+      return Response.json({ error: "No settings provided" }, { status: 400 });
+    }
+
+    await saveSettings(updates);
 
     return Response.json({ ok: true, message: "Settings saved successfully" });
-  } catch (e) {
+  } catch {
     return Response.json({ error: "Failed to save settings" }, { status: 500 });
   }
 }

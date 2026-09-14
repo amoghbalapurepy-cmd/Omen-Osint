@@ -5,6 +5,8 @@ const SETTINGS_PATH = path.join(process.cwd(), ".omen-settings.json");
 
 export type OmenSettings = {
   tavilyApiKey?: string;
+  googleApiKey?: string;
+  googleCx?: string;
 };
 
 export async function getSettings(): Promise<OmenSettings> {
@@ -23,10 +25,17 @@ export async function saveSettings(settings: Partial<OmenSettings>) {
 }
 
 export async function getTavilyKey(): Promise<string | undefined> {
-  // Priority: 1. Environment Variable, 2. Settings File
   if (process.env.TAVILY_API_KEY) {
     return process.env.TAVILY_API_KEY;
   }
   const settings = await getSettings();
   return settings.tavilyApiKey;
+}
+
+export async function getGoogleKeys() {
+  const settings = await getSettings();
+  return {
+    apiKey: process.env.GOOGLE_API_KEY || settings.googleApiKey,
+    cx: process.env.GOOGLE_CX || settings.googleCx,
+  };
 }

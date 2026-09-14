@@ -1,5 +1,5 @@
 import { getJson, getPresence, ndjsonStream, postJson, type FetchResult } from "@/lib/server/net";
-import { getTavilyKey } from "@/lib/server/settings";
+import { getGoogleKeys, getTavilyKey } from "@/lib/server/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,7 +73,7 @@ async function checkProvider(spec: ProviderSpec, username: string, write: WriteF
         profile: spec.profileUrl(username),
       });
     }
-  } catch (e) {
+  } catch {
     write({
       type: "result",
       provider: spec.name,
@@ -160,9 +160,11 @@ const PROVIDERS: ProviderSpec[] = [
 ];
 
 async function runDiscovery(target: string, write: WriteFn) {
-  const apiKey = await getTavilyKey();
-  if (!apiKey) {
-    write({ type: "notice", message: "Discovery skipped: Tavily API key not configured." });
+  const tavilyKey = await getTavilyKey();
+  const { apiKey: googleKey, cx: googleCx } = await getGoogleKeys();
+
+  if (!tavilyKey && (!googleKey || !googleCx)) {
+    write({ type: "notice", message: "Discovery skipped: No search credentials configured." });
     return;
   }
 
@@ -175,35 +177,54 @@ async function runDiscovery(target: string, write: WriteFn) {
   ];
 
   for (const q of queries) {
-    const r = await postJson("https://api.tavily.com/search", {
-      api_key: apiKey,
-      query: q,
-      max_results: 5,
-    });
+    const results: { url: string; title: string }[] = [];
 
-    if (r.ok && Array.isArray(r.data?.results)) {
-      for (const res of r.data.results) {
-        const url = res.url;
-        const title = res.title;
-        // Simple pattern match for social URLs
-        const platform = Object.entries({
-          "instagram.com": "Instagram",
-          "twitter.com": "Twitter/X",
-          "x.com": "Twitter/X",
-          "facebook.com": "Facebook",
-          "linkedin.com": "LinkedIn",
-          "tiktok.com": "TikTok",
-        }).find(([domain]) => url.includes(domain));
-
-        if (platform) {
-          write({
-            type: "result",
-            provider: platform[1],
-            status: "evidence",
-            profile: url,
-            detail: `Found via web search: ${title}`,
-          });
+    if (tavilyKey) {
+      const tr = await postJson("https://api.tavily.com/search", {
+        api_key: tavilyKey,
+        query: q,
+        max_results: 5,
+      });
+      if (tr.ok && Array.isArray((tr.data as any)?.results)) {
+        for (const res of (tr.data as any).results) {
+          if (typeof res?.url === "string" && typeof res?.title === "string") {
+            results.push({ url: res.url, title: res.title });
+          }
         }
+      }
+    }
+
+    if (googleKey && googleCx) {
+      const gr = await getJson(`https://www.googleapis.com/customsearch/v1?key=${googleKey}&cx=${googleCx}&q=${encodeURIComponent(q)}&num=5`);
+      if (gr.ok && Array.isArray((gr.data as any)?.items)) {
+        for (const res of (gr.data as any).items) {
+          if (typeof res?.link === "string" && typeof res?.title === "string") {
+            results.push({ url: res.link, title: res.title });
+          }
+        }
+      }
+    }
+
+    for (const res of results) {
+      const url = res.url;
+      const title = res.title;
+      const platform = Object.entries({
+        "instagram.com": "Instagram",
+        "twitter.com": "Twitter/X",
+        "x.com": "Twitter/X",
+        "facebook.com": "Facebook",
+        "linkedin.com": "LinkedIn",
+        "tiktok.com": "TikTok",
+      }).find(([domain]) => url.includes(domain));
+
+      if (platform) {
+        write({
+          type: "result",
+          provider: platform[1],
+          status: "evidence",
+          profile: url,
+          detail: `Found via web search: ${title}`,
+        });
       }
     }
   }
@@ -245,8 +266,6 @@ async function runSocialScan(input: string, write: WriteFn) {
 
   await Promise.allSettled(tasks);
 
-  // If all results are misses, run discovery as a fallback for usernames too
-  // (This is what makes it "work" when direct APIs fail)
   if (type === "username") {
     tasks.push(runDiscovery(target, write));
     await Promise.allSettled(tasks);
@@ -265,6 +284,6 @@ export async function GET(req: Request) {
 
   return ndjsonStream(
     (write) => runSocialScan(input, write),
-    (write) => write({ type: "init", message: "Starting deep scan..." })
+    (write) => write({ type: "init", message: "Starting deep scan..." }),
   );
 }

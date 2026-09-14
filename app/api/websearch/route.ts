@@ -1,5 +1,5 @@
-import { ndjsonStream, postJson } from "@/lib/server/net";
-import { getTavilyKey } from "@/lib/server/settings";
+import { getJson, ndjsonStream, postJson } from "@/lib/server/net";
+import { getGoogleKeys, getTavilyKey } from "@/lib/server/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,22 +21,16 @@ function makeWebSearchQueries(input: string): string[] {
 
   if (/^[A-Za-z0-9._-]+$/.test(q)) {
     const normalized = q.replace(/[._-]+/g, " ").trim();
-
     if (normalized && normalized !== q) {
       add(`"${normalized}"`);
     }
-
     add("@" + q.replace(/^@+/, ""));
   }
 
   return queries.slice(0, 3);
 }
 
-async function tavilySearch(
-  q: string,
-  apiKey: string,
-  maxResults = 10,
-) {
+async function tavilySearch(q: string, apiKey: string, maxResults = 10) {
   return postJson(
     "https://api.tavily.com/search",
     {
@@ -54,33 +48,21 @@ async function tavilySearch(
   );
 }
 
-function providerErrorCode(status?: number): string {
-  if (status === 429) {
-    return "PROVIDER_RATE_LIMITED";
-  }
-
-  if (status !== undefined && status >= 500) {
-    return "UPSTREAM_ERROR";
-  }
-
-  if (status === 401 || status === 403) {
-    return "INVALID_PROVIDER_CREDENTIAL";
-  }
-
-  return "PROVIDER_ERROR";
+async function googleSearch(q: string, apiKey: string, cx: string, maxResults = 10) {
+  const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(q)}&num=${Math.min(10, Math.max(1, maxResults))}`;
+  return getJson(url);
 }
 
 async function runWebSearch(input: string, write: WriteFn) {
-  const apiKey = await getTavilyKey();
+  const tavilyKey = await getTavilyKey();
+  const { apiKey: googleKey, cx: googleCx } = await getGoogleKeys();
 
-  if (!apiKey) {
+  if (!tavilyKey && (!googleKey || !googleCx)) {
     write({
       type: "search_error",
-      error:
-        "TAVILY_API_KEY is not set. Add it in Settings or the project environment before running a public web search.",
+      error: "No valid search credentials (Tavily or Google) configured.",
       code: "PROVIDER_NOT_CONFIGURED",
     });
-
     write({ type: "done" });
     return;
   }
@@ -91,11 +73,11 @@ async function runWebSearch(input: string, write: WriteFn) {
   write({
     type: "search_start",
     input,
-    provider: "Tavily",
+    provider: "Multi-Engine",
     query_count: queries.length,
   });
 
-  const tasks = queries.map(async (q, index) => {
+  for (const [index, q] of queries.entries()) {
     write({
       type: "query",
       index: index + 1,
@@ -103,103 +85,60 @@ async function runWebSearch(input: string, write: WriteFn) {
       q,
     });
 
-    try {
-      const r = await tavilySearch(q, apiKey, 10);
+    const results: { title: string; url: string; description: string; score?: number; publishedAt?: string }[] = [];
 
-      if (r.error) {
-        write({
-          type: "search_error",
-          query: q,
-          error: r.error,
-          code: "PROVIDER_ERROR",
-        });
-        return;
+    if (tavilyKey) {
+      const tr = await tavilySearch(q, tavilyKey);
+      if (tr.ok && Array.isArray((tr.data as any)?.results)) {
+        for (const item of (tr.data as any).results) {
+          results.push({
+            title: item.title,
+            url: item.url,
+            description: item.content,
+            score: item.score,
+            publishedAt: item.published_date,
+          });
+        }
       }
+    }
 
-      if (!r.ok) {
-        const d =
-          r.data && typeof r.data === "object"
-            ? (r.data as Record<string, unknown>)
-            : null;
-
-        const status = r.status;
-
-        const detail =
-          (typeof d?.detail === "string" && d.detail) ||
-          (typeof d?.error === "string" && d.error) ||
-          (typeof d?.message === "string" && d.message) ||
-          `Tavily returned HTTP ${status ?? "unknown"}`;
-
-        write({
-          type: "search_error",
-          query: q,
-          http: status,
-          error: detail,
-          code: providerErrorCode(status),
-        });
-
-        return;
+    if (googleKey && googleCx) {
+      const gr = await googleSearch(q, googleKey, googleCx);
+      if (gr.ok && Array.isArray((gr.data as any)?.items)) {
+        for (const item of (gr.data as any).items) {
+          results.push({
+            title: item.title,
+            url: item.link,
+            description: item.snippet,
+          });
+        }
       }
+    }
 
-      const payload =
-        r.data && typeof r.data === "object"
-          ? (r.data as { results?: unknown[] })
-          : null;
-
-      const results = Array.isArray(payload?.results)
-        ? payload.results
-        : [];
-
-      let emitted = 0;
-
-      for (const raw of results) {
-        if (!raw || typeof raw !== "object") continue;
-
-        const item = raw as Record<string, unknown>;
-        const url = String(item.url || "").trim();
-
-        if (!url || seen.has(url)) continue;
-
-        seen.add(url);
-        emitted++;
-
-        write({
-          type: "result",
-          query: q,
-          title: String(item.title || "Untitled result"),
-          url,
-          description: String(item.content || ""),
-          score:
-            typeof item.score === "number"
-              ? item.score
-              : null,
-          publishedAt:
-            typeof item.published_date === "string"
-              ? item.published_date
-              : null,
-        });
-      }
-
+    let emitted = 0;
+    for (const res of results) {
+      const url = res.url?.trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      emitted++;
       write({
-        type: "query_done",
+        type: "result",
         query: q,
-        returned: results.length,
-        emitted,
-      });
-    } catch (error) {
-      write({
-        type: "search_error",
-        query: q,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unexpected provider error.",
-        code: "PROVIDER_ERROR",
+        title: res.title,
+        url,
+        description: res.description,
+        score: res.score,
+        publishedAt: res.publishedAt,
       });
     }
-  });
 
-  await Promise.allSettled(tasks);
+    write({
+      type: "query_done",
+      query: q,
+      returned: results.length,
+      emitted,
+    });
+  }
 
   write({
     type: "done",
@@ -212,14 +151,7 @@ export async function GET(req: Request) {
   const q = (searchParams.get("q") || "").trim();
 
   if (!q || q.length > 400) {
-    return Response.json(
-      {
-        error: "Search query must be 1-400 characters.",
-      },
-      {
-        status: 400,
-      },
-    );
+    return Response.json({ error: "Search query must be 1-400 characters." }, { status: 400 });
   }
 
   return ndjsonStream((write) => runWebSearch(q, write));
