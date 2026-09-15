@@ -34,8 +34,8 @@ OMEN was built around a simple idea:
 
 The project currently provides two major investigation paths:
 
-* **Public Web OSINT** — search indexed public pages for names, phrases, usernames, handles, keywords, and other identifiers.
-* **Public Profile Verification** — check selected public platform endpoints for username presence.
+* **Public Web OSINT** — search indexed public pages for names, phrases, usernames, handles, keywords, and other identifiers using Tavily and Google Search APIs.
+* **Public Profile Verification** — check selected public platform endpoints for username presence with comprehensive profile extraction.
 
 It also includes defensive utilities for areas such as network connectivity, DNS/email configuration, URL safety, TLS/SSL information, and password exposure checks.
 
@@ -45,7 +45,7 @@ It also includes defensive utilities for areas such as network connectivity, DNS
 
 ### 🔎 Public Web OSINT
 
-OMEN can send live searches to Tavily and stream the returned results directly into the console.
+OMEN can send live searches to Tavily and Google Search APIs and stream the returned results directly into the console.
 
 The search system:
 
@@ -71,7 +71,7 @@ OMEN does **not** generate fake profile URLs or fabricate search results.
 
 ---
 
-### 👤 Public Profile Verification
+### 👤 Public Profile Verification & Social Scan
 
 OMEN can check selected public endpoints for username presence across:
 
@@ -81,6 +81,14 @@ OMEN can check selected public endpoints for username presence across:
 * Keybase
 * Reddit
 * npm maintainer evidence
+
+**NEW:** The enhanced Social Scan feature now includes:
+
+* Web-backed discovery for improved results
+* Profile extraction with rich metadata
+* Interactive profile cards
+* Google Search API integration for deeper social discovery
+* Comprehensive scan results with confidence indicators
 
 These checks are intended to answer:
 
@@ -101,6 +109,7 @@ The console also provides defensive network utilities, including:
 * DNS information
 * Network-device checks
 * Connectivity diagnostics
+* Improved presence detection
 
 ---
 
@@ -122,7 +131,7 @@ The project is designed so that sensitive credentials are not sent to the fronte
 
 ## How Public Web Search Works
 
-OMEN's public-web search is powered by **Tavily**.
+OMEN's public-web search is powered by **Tavily** and **Google Search APIs**.
 
 A search input is expanded into several query variations to reduce obvious blind spots.
 
@@ -141,7 +150,7 @@ plague.programmer
 @plague.programmer
 ```
 
-The backend sends these searches to Tavily and streams the returned results to the browser.
+The backend sends these searches to the configured providers and streams the returned results to the browser.
 
 OMEN then:
 
@@ -153,7 +162,7 @@ OMEN then:
 
 ### Important
 
-OMEN searches **public pages returned by the configured search provider**.
+OMEN searches **public pages returned by the configured search providers**.
 
 It does **not** crawl the entire internet.
 
@@ -221,27 +230,31 @@ The project is intended for lawful and authorized research, defensive security w
 │          OMEN UI              │
 │       Browser Interface       │
 └───────────────┬───────────────┘
-                │
-                ▼
+                 │
+                 ▼
 ┌───────────────────────────────┐
-│       Local Node.js Server    │
+│    Next.js Local Server       │
 │                               │
 │  • Search orchestration       │
 │  • Result streaming           │
 │  • Public endpoint checks     │
+│  • Profile extraction         │
 │  • Security utilities         │
 └───────┬───────────┬───────────┘
         │           │
         ▼           ▼
-   ┌─────────┐  ┌────────────────┐
-   │ Tavily  │  │ Public network │
-   │ Search  │  │ / security APIs│
-   └─────────┘  └────────────────┘
+   ┌─────────────────────────────┐
+   │  Search & Data Providers    │
+   │  • Tavily Search API        │
+   │  • Google Search API        │
+   │  • Public Network APIs      │
+   │  • Security APIs            │
+   └─────────────────────────────┘
 ```
 
-The browser communicates with the local Node.js backend.
+The browser communicates with the local Next.js backend.
 
-API credentials such as the Tavily key are kept server-side through environment variables rather than embedded in the frontend.
+API credentials such as Tavily and Google Search keys are kept server-side through environment variables rather than embedded in the frontend.
 
 ---
 
@@ -252,6 +265,7 @@ API credentials such as the Tavily key are kept server-side through environment 
 * Node.js **18+**
 * Internet connection
 * A Tavily API key
+* A Google Search API key (optional, for enhanced social scanning)
 
 Node.js 20+ is recommended.
 
@@ -276,7 +290,7 @@ npm install
 
 ## Configuration
 
-OMEN expects the Tavily API key to be available as an environment variable. Copy `.env.example` to `.env` and fill in your key:
+OMEN expects API keys to be available as environment variables. Copy `.env.example` to `.env` and fill in your keys:
 
 ```bash
 cp .env.example .env
@@ -284,7 +298,9 @@ cp .env.example .env
 
 ```text
 TAVILY_API_KEY=your_tavily_api_key_here
-PORT=8787
+GOOGLE_SEARCH_API_KEY=your_google_search_api_key_here
+GOOGLE_SEARCH_ENGINE_ID=your_google_cse_id_here
+PORT=3000
 ```
 
 ### Running the app (Next.js — recommended)
@@ -320,15 +336,15 @@ node server.js
 
 Then open `http://localhost:8787`.
 
-### Never commit your real API key
+### Never commit your real API keys
 
-Your real Tavily key should remain local. `.env` is already excluded via `.gitignore` — only `.env.example` is tracked.
+Your real API keys should remain local. `.env` is already excluded via `.gitignore` — only `.env.example` is tracked.
 
 ---
 
 ## API Endpoints
 
-OMEN currently exposes local endpoints through its Node.js backend.
+OMEN currently exposes local endpoints through its Next.js backend.
 
 ### Health
 
@@ -344,15 +360,15 @@ Returns the current backend status.
 GET /api/websearch?q=<query>
 ```
 
-Runs the Tavily-powered public-web search and streams newline-delimited results.
+Runs the multi-provider public-web search and streams newline-delimited results.
 
-### Public Username Recon
+### Public Username Recon & Social Scan
 
 ```text
 GET /api/recon?username=<username>
 ```
 
-Checks configured public platform endpoints for username evidence.
+Checks configured public platform endpoints for username evidence with comprehensive profile extraction.
 
 ---
 
@@ -361,23 +377,36 @@ Checks configured public platform endpoints for username evidence.
 ```text
 Omen-Osint/
 │
-├── app/                     # Next.js App Router
+├── app/                        # Next.js App Router
 │   ├── api/
-│   │   ├── health/
-│   │   ├── recon/
-│   │   └── websearch/
+│   │   ├── health/             # Health check endpoint
+│   │   ├── recon/              # Recon & social scan endpoint
+│   │   ├── websearch/          # Web search endpoint
+│   │   └── ...
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
 │
-├── components/              # UI components (dashboard, sidebar, console, etc.)
-├── lib/                     # Client + server helpers (lib/server/ is server-only)
-├── assets/
-│   └── branding/
+├── components/                 # UI components
+│   ├── DashboardClient.tsx     # Main dashboard
+│   ├── SocialScanTab.tsx       # Social scan interface
+│   ├── WebSearchTab.tsx        # Web search interface
+│   └── ...
 │
-├── index.html               # Legacy static entry point
-├── server.js                # Legacy standalone Node server
-├── ui.js / ui.css / ui-fixes.css   # Legacy frontend assets
+├── lib/                        # Client + server helpers
+│   ├── server/                 # Server-only utilities
+│   │   ├── google-search.ts    # Google Search API integration
+│   │   ├── recon.ts            # Recon engine
+│   │   └── ...
+│   └── ...
+│
+├── assets/
+│   ├── branding/
+│   └── screenshots/
+│
+├── index.html                  # Legacy static entry point
+├── server.js                   # Legacy standalone Node server
+├── ui.js / ui.css / ui-fixes.css # Legacy frontend assets
 │
 ├── README.md
 ├── LICENSE
@@ -441,6 +470,14 @@ Always follow applicable laws, policies, and the terms of the services being que
 ## Roadmap
 
 OMEN is still under active development.
+
+Recent improvements:
+
+* [x] Google Search API integration
+* [x] Comprehensive social scan with profile extraction
+* [x] Web-backed discovery for social scan
+* [x] Improved network diagnostics
+* [x] Enhanced UI with profile cards
 
 Planned improvements include:
 
